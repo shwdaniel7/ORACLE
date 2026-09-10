@@ -147,7 +147,7 @@ class WizardView(ctk.CTkFrame):
         if self.step == 6:
             self._finish()
             return
-        if self.step == 1:
+        if self.step == 1 and self.case_id is None:
             created = self._create_case()
             if created is None:
                 return

@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from oracle.__about__ import __version__
+from oracle.analyzers.correlation import build_correlation_plan
 from oracle.case.manager import CaseManager
 from oracle.config import OracleConfig
 from oracle.models import (
@@ -23,6 +24,7 @@ from oracle.models import (
     Relationship,
     Severity,
 )
+from oracle.services.engine import AssessmentEngine, ScanProgress
 
 _BRAND = "ORACLE"
 _SUBTITLE = "PERSONAL OPSEC INTELLIGENCE ENGINE"
@@ -101,14 +103,19 @@ def _relationships_table(relationships: list[Relationship]) -> Table:
     return table
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(__version__, prog_name="oracle")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """ORACLE — Personal OPSEC Intelligence Engine.
 
     OBSERVATION · INTELLIGENCE · ANALYSIS
+
+    Run without arguments to open the graphical dashboard.
     """
     _configure_encoding()
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(dashboard_command)
 
 
 @cli.command("init")
@@ -137,6 +144,96 @@ def init_command(data_dir: Path | None) -> None:
 def version_command() -> None:
     """Show the installed version."""
     console.print(f"{_BRAND} {__version__} — {_SUBTITLE}")
+
+
+@cli.command("dashboard")
+def dashboard_command() -> None:
+    """Open the graphical ORACLE dashboard."""
+    try:
+        from oracle.gui.app import build_app
+    except ModuleNotFoundError as exc:
+        raise click.ClickException(
+            'The dashboard requires the "gui" optional dependencies. '
+            'Install them with `pip install -e ".[gui]"`.'
+        ) from exc
+    config = OracleConfig.load()
+    build_app(config).mainloop()
+
+
+def _print_scan_progress(event: ScanProgress) -> None:
+    flow = f"[dim]({event.completed}/{event.total})[/] "
+    name = event.source or "?"
+    identifier = event.identifier or "?"
+    console.print(f"{flow}{name}: {identifier} → {event.status}" + (
+        f" — {event.detail}" if event.detail else ""
+    ))
+
+
+@cli.command("scan")
+@click.argument("case_id")
+@click.option(
+    "--collector",
+    "collector_names",
+    multiple=True,
+    help="Restrict the scan to specific collectors (repeatable).",
+)
+@click.option(
+    "--no-save",
+    is_flag=True,
+    help="Show results without persisting findings.",
+)
+def scan_command(
+    case_id: str,
+    collector_names: tuple[str, ...],
+    no_save: bool,
+) -> None:
+    """Run public-information discovery (probes) for a case."""
+    try:
+        config, manager = _service()
+        engine = AssessmentEngine(config, manager)
+        created = engine.scan(
+            case_id,
+            collector_names=collector_names or None,
+            persist=not no_save,
+            progress=_print_scan_progress,
+        )
+    except KeyError as exc:
+        raise click.ClickException(str(exc)) from exc
+    verb = "reported" if no_save else "saved"
+    console.print(
+        Panel.fit(
+            f"Scan complete: [bold]{len(created)}[/] finding(s) {verb}.",
+            style=f"bold {_OLIVE}",
+        )
+    )
+
+
+@cli.command("analyze")
+@click.argument("case_id")
+@click.option(
+    "--no-save",
+    is_flag=True,
+    help="Show the correlation plan without persisting it.",
+)
+def analyze_command(case_id: str, no_save: bool) -> None:
+    """Run correlation analysis over a case's findings."""
+    try:
+        config, manager = _service()
+        engine = AssessmentEngine(config, manager)
+        if no_save:
+            plan = build_correlation_plan(
+                manager.list_identities(case_id),
+                manager.list_findings(case_id),
+            )
+            relationships = list(plan.relationships)
+        else:
+            relationships = engine.analyze(case_id)
+    except KeyError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if not relationships:
+        console.print("[dim]No correlations detected.[/]")
+        return
+    console.print(_relationships_table(relationships))
 
 
 @cli.group("case")

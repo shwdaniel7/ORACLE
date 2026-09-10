@@ -14,12 +14,14 @@
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge" alt="Python" />
   <img src="https://img.shields.io/badge/Click-command_line_interface?style=for-the-badge&color=6b8e23" alt="Click" />
   <img src="https://img.shields.io/badge/Rich-silver?style=for-the-badge" alt="Rich" />
+  <img src="https://img.shields.io/badge/httpx-fetching_evidence?style=for-the-badge&color=4B7198" alt="httpx" />
+  <img src="https://img.shields.io/badge/CustomTkinter-friendly_dashboard?style=for-the-badge&color=6b8e23" alt="CustomTkinter" />
   <img src="https://img.shields.io/badge/Pydantic_v2-violet?style=for-the-badge" alt="Pydantic v2" />
   <img src="https://img.shields.io/badge/SQLAlchemy-red?style=for-the-badge" alt="SQLAlchemy" />
   <img src="https://img.shields.io/badge/SQLite-044F88?style=for-the-badge" alt="SQLite" />
   <img src="https://img.shields.io/badge/JSON_%26_Markdown_Reports-4DB33D?style=for-the-badge" alt="JSON & Markdown Reports" />
   <img src="https://img.shields.io/badge/GPL--3.0-orange?style=for-the-badge" alt="GPL-3.0 License" />
-  <img src="https://img.shields.io/badge/Windows-2374E1?style=for-the-badge" alt="Windows" />
+  <img src="https://img.shields.io/badge/Windows_-dashboard-ready?style=for-the-badge&color=2374E1" alt="Windows" />
 </p>
 
 <p align="center">
@@ -74,12 +76,12 @@ REMEDIATE
 
 | Stage | Purpose | Status |
 |---|---|---|
-| **Discover** | Identify publicly accessible information associated with your identifiers (usernames, emails, domains, profiles). Public collectors are an upcoming roadmap phase. | 🔭 Planned |
-| **Correlate** | Determine whether separate findings belong to the same digital identity, always with an explicit confidence level. | 🔭 Planned |
+| **Discover** | Identify publicly accessible information associated with your identifiers (usernames, emails, domains) through presence-only collectors. | ✅ Implemented |
+| **Correlate** | Detect when the same identifier is observed across multiple sources and model it as an identity relationship, always with an explicit confidence level. | ✅ Implemented |
 | **Assess** | Evaluate the OPSEC significance of each finding and produce an explainable exposure score. | ✅ Implemented |
 | **Remediate** | Turn findings into an actionable, priority-ordered remediation plan. | ✅ Implemented |
 
-The current release implements the **Assess** and **Remediate** stages on top of a local case model. Future phases add **Discover** (collectors) and **Correlate** (analyzers, identity graph).
+All four stages are available from both the friendly dashboard and the command line.
 
 ---
 
@@ -107,6 +109,27 @@ Every finding carries a structured context:
 
 Uncertainty is never hidden. `NOT_FOUND` is explicitly not the same as "does not exist".
 
+### Presence-only discovery
+
+ORACLE probes identifiers against public sources and records only what it actually observes — never guesses. Each collector is modular, rate-aware, and bounded:
+
+| Collector | Identifier | Source |
+|---|---|---|
+| `github` | username | `api.github.com/users/{name}` (falls back to the public profile page when the API is rate-limited) |
+| `gitlab` | username | `gitlab.com/api/v4/users?username=` |
+| `reddit` | username | `reddit.com/user/{name}/about.json` |
+| `dns` | domain | system resolver (A/AAAA records) |
+| `crt` | domain | `crt.sh` certificate transparency |
+| `gravatar` | email | `gravatar.com/{md5(email)}.json` |
+
+Probing is **bounded**: a limit of probes per identity, a delay between requests, and per-source collection. A failed or inconclusive probe never becomes a finding — `NOT_FOUND` and `UNKNOWN` simply produce no evidence.
+
+Emails are matched to a public Gravatar profile only when one actually exists; an email with no profile simply reports `not observed`. In the GUI, discovery **runs automatically** when you reach the *Descoberta* step, and the summary distinguishes `found` from `not observed` from `source error/rate-limited` — so a rate-limited source never reads as a false "not found".
+
+### Automatic identity correlation
+
+When the same username is observed on **two or more** sources, ORACLE creates a `same_username` relationship and a `Profile` identity for it, backed by the actual evidence collected. Re-running an assessment never duplicates correlations.
+
 ### Explainable OPSEC scoring
 
 The assessment engine computes a transparent 0–100 score per dimension:
@@ -131,9 +154,20 @@ Findings are grouped into a `HIGH` / `MEDIUM` / `LOW` priority plan of actionabl
 
 Assessments are exported as **JSON** (full structured data) or **Markdown** (readable audit), including executive summary, identity overview, exposure findings, correlations, scores, and remediation plan.
 
+### Friendly dashboard
+
+Run `oracle` with no arguments (or `oracle dashboard`) to open the desktop interface — no CLI needed for day-to-day use. The dashboard guides you step by step:
+
+1. **New case** — name your assessment
+2. **Identities** — add the usernames, emails, and domains you want to evaluate
+3. **Discovery** — choose which public sources to probe (all are checked by default)
+4. **Review** — inspect findings and evidence before accepting them
+5. **Result** — see the exposure report and OPSEC score
+6. **Remediation** — review the priority-ordered action plan and export JSON/Markdown reports
+
 ### Privacy-oriented design
 
-Before collecting anything, ORACLE only stores what you give it, inside a local SQLite database under `~/.oracle/`. Report files warning about sensitive data, and future phases add EXIF removal, metadata sanitization, report encryption, and secure deletion.
+ORACLE replaces assumption with observation: public-source probing is **presence-only**, bounded, and optional — you choose the sources in the dashboard. Everything is stored inside a local SQLite database under `~/.oracle/`, no data ever leaves your machine except the probes you authorize. Report files warn about sensitive data, and future phases add EXIF removal, metadata sanitization, report encryption, and secure deletion.
 
 ---
 
@@ -147,13 +181,21 @@ ORACLE/
 ├── assets/
 │   └── logo.jpg
 ├── docs/
-│   └── ORACLE_PROJECT_CONTEXT.md
+│   └── context/
+│       └── ORACLE_PROJECT_CONTEXT.md
 └── oracle/
     ├── __init__.py
     ├── __main__.py
+    ├── __about__.py          # version
     ├── config.py            # TOML configuration loader
     ├── cli/                 # Click command-line interface
     │   └── main.py
+    ├── gui/                 # CustomTkinter dashboard
+    │   ├── app.py           #   → main window and routing
+    │   ├── wizard.py        #   → guided new-assessment flow
+    │   ├── theme.py         #   → olive green identity
+    │   ├── theme.json
+    │   └── views/           #   → cases + settings screens
     ├── models/              # Pydantic v2 domain models
     │   ├── case.py
     │   ├── evidence.py
@@ -167,10 +209,17 @@ ORACLE/
     │   └── orm_models.py
     ├── case/                # Local case management
     │   └── manager.py
-    ├── collectors/          # Public information collectors (Phase 2)
-    │   └── base.py          #   → BaseCollector contract
-    ├── analyzers/           # Correlation analyzers (Phase 3)
-    │   └── base.py          #   → BaseAnalyzer contract
+    ├── collectors/          # Presence-only public information collectors
+    │   ├── base.py          #   → BaseCollector contract + ProbeResult
+    │   ├── http.py          #   → bounded HTTP client
+    │   ├── registry.py      #   → probe planning + scan orchestration
+    │   ├── mapper.py        #   → probe results to findings
+    │   └── sources/         #   → github, gitlab, reddit, dns, crt, gravatar
+    ├── analyzers/           # Correlation analyzers
+    │   ├── base.py          #   → BaseAnalyzer contract
+    │   └── correlation.py   #   → same_username identity correlation
+    ├── services/            # Engine layer
+    │   └── engine.py        #   → AssessmentEngine (scan, analyze, assess)
     ├── opsec/               # Assessment engine
     │   ├── scoring.py
     │   └── recommendations.py
@@ -182,10 +231,13 @@ ORACLE/
 - `models/` holds the canonical Pydantic v2 data structures used everywhere.
 - `database/` persists them with SQLAlchemy in a single local SQLite file.
 - `case/manager.py` provides all CRUD operations for cases, identities, findings, and relationships.
+- `collectors/` implements the discovery stage: modular sources probe identifiers only against evidence, and `registry.py` plans bounded scans with progress and cancellation.
+- `analyzers/correlation.py` implements the correlation stage: the same identifier observed across multiple sources becomes a relationships.
+- `services/engine.py` orchestrates the full pipeline — discovery → correlation → assessment → remediation — for both the CLI and the dashboard.
 - `opsec/scoring.py` and `opsec/recommendations.py` implement the assessment and remediation stages.
 - `reports/generator.py` renders JSON and Markdown assessments.
-- `cli/main.py` binds everything behind the `oracle` command.
-- `collectors/` and `analyzers/` define the contracts for future discovery and correlation phases.
+- `cli/main.py` binds everything behind the `oracle` command (and opens the dashboard when run without arguments).
+- `gui/` is the CustomTkinter dashboard: it uses the same engine as the CLI, so nothing learned in the terminal is lost.
 
 `docs/ORACLE_PROJECT_CONTEXT.md` is the full specification behind the project, including philosophy, architecture direction, visual identity, and roadmap.
 
@@ -194,15 +246,18 @@ ORACLE/
 ## 🔄 Assessment Workflow
 
 ```text
-oracle case new "My Audit"
+oracle dashboard            → the friendly way (no CLI needed)
+oracle scan <case-id>       → probe identifiers against public sources
        │
-       ├─► identity add   → register your identifiers
+       ├─► github · gitlab · reddit · dns · crt
        │
-       ├─► finding add    → record evidence-based findings
+       └─► findings with evidence (presence-only, bounded probes)
+
+oracle analyze <case-id>    → detect cross-platform identity correlation
        │
-       ├─► relationship add → model identity correlations
-       │
-       ├─► report         → scoring + remediation plan
+       └─► same_username relationships (never duplicated)
+
+oracle report <case-id>     → scoring + remediation plan
        │        │
        │        ├─► JSON assessment (full structured data)
        │        └─► Markdown assessment (readable audit)
@@ -210,7 +265,7 @@ oracle case new "My Audit"
        └─► re-assess later → compare scores over time
 ```
 
-Each case is an isolated investigation. Reports are generated from the case's stored identities, findings, relationships, computed scores, and remediation plan.
+The GUI wizard automates the same flow step by step; the CLI exists for scripting and transparency.
 
 ---
 
@@ -224,7 +279,13 @@ cd ORACLE
 pip install -e .
 ```
 
-Command-line tool supported on Windows, macOS, and Linux.
+To also install the desktop dashboard:
+
+```bash
+pip install -e ".[gui]"
+```
+
+Command-line tool supported on Windows, macOS, and Linux. The dashboard requires a desktop environment (Windows and Linux/macOS with a display).
 
 ---
 
@@ -238,6 +299,15 @@ data_dir = "C:/Users/you/.oracle"
 
 [reports]
 default_format = "markdown"
+
+[collectors]
+enabled = ["github", "gitlab", "reddit", "dns", "crt", "gravatar"]
+timeout_seconds = 10
+delay_seconds = 0.2
+max_probes_per_identity = 8
+
+[gui]
+theme = "olive"
 ```
 
 Run `oracle init` to create the configuration and local storage automatically.
@@ -251,24 +321,28 @@ Run `oracle init` to create the configuration and local storage automatically.
 
 ## 💻 Usage
 
+The fastest way is the dashboard:
+
+```bash
+oracle dashboard
+# or simply: oracle
+```
+
+Prefer the terminal? The CLI mirrors the same pipeline:
+
 ```bash
 oracle init
 oracle case new "My First Audit"
 oracle identity add <case-id> --type username --value "example_user"
-oracle identity add <case-id> --type email --value "user@example.com"
-oracle finding add <case-id> \
-    --category "Identity Correlation" \
-    --severity HIGH \
-    --confidence CONFIRMED \
-    --description "Same username observed across multiple platforms." \
-    --source github.com --source reddit.com \
-    --recommendation "Separate personal and public-facing identifiers."
-oracle report <case-id> --format markdown
+oracle scan <case-id>                      # probe public sources for evidence
+oracle analyze <case-id>                   # detect cross-platform correlation
+oracle report <case-id> --format markdown  # scoring + remediation plan
 ```
 
 ### Command reference
 
 ```text
+oracle                                              Open the dashboard (no CLI needed)
 oracle init                                    Initialize configuration and local storage
 oracle case new <name> [--description]         Create an assessment case
 oracle case list                               List all cases
@@ -281,6 +355,9 @@ oracle finding add <case-id> --category <c> --severity <s> --confidence <c> --de
 oracle finding list <case-id>                  List findings in a case
 oracle relationship add <case-id> --from <id-a> --to <id-b> --type <t> --confidence <c> [--notes]
 oracle relationship list <case-id>             List relationships in a case
+oracle scan <case-id> [--collector <name>...]  Probe identifiers against public sources
+                  [--no-save]
+oracle analyze <case-id> [--no-save]           Detect identity correlations across sources
 oracle report <case-id> --format json|markdown [--output <file>]
 oracle version                                 Show the installed version
 ```
@@ -291,7 +368,7 @@ Run `oracle --help` for the full reference.
 
 ```text
 $ oracle version
-ORACLE 0.1.0 — PERSONAL OPSEC INTELLIGENCE ENGINE
+ORACLE 0.2.0 — PERSONAL OPSEC INTELLIGENCE ENGINE
 
 $ oracle case new "My Audit"
 
@@ -300,6 +377,19 @@ $ oracle case new "My Audit"
 │  ID: 3de7ab8291004472bb92bff02be618b1        │
 │  Name: My Audit                              │
 ╰──────────────────────────────────────────────╯
+```
+
+```text
+$ oracle scan <case-id>
+
+Scanning 1 identity against 6 collectors...
+
+✓ github  → example_user  FOUND (github.com/example_user)
+✓ gitlab  → example_user  FOUND (gitlab.com/example_user)
+· reddit  → example_user  not observed
+· dns     → example.com   not observed
+
+1 new finding recorded with 1 evidence.
 ```
 
 ```text
@@ -377,14 +467,31 @@ Renders an `AssessmentBundle` — case, identities, findings, relationships, sco
 
 ### `oracle/cli/main.py`
 
-A Click group with Rich output styled in ORACLE's olive green, exposing `init`, `case`, `identity`, `finding`, `relationship`, `report`, and `version`.
+A Click group with Rich output styled in ORACLE's olive green. It exposes `init`, `case`, `identity`, `finding`, `relationship`, `scan`, `analyze`, `report`, `dashboard`, and `version` — and opens the dashboard automatically when invoked without arguments.
+
+### `oracle/collectors/`
+
+- `base.py` — `BaseCollector` contract (`name`, `reliability`, `supported_identifiers`, `probe()`), with `ProbeResult` (`FOUND` / `NOT_FOUND` / `UNKNOWN` / `ERROR`).
+- `http.py` — a bounded `httpx` client with a timeout per request.
+- `registry.py` — plans which collectors apply to which identifiers, runs scans with a delay between probes, and reports progress or cancellation.
+- `mapper.py` — converts probe results into findings with evidence (`NOT_FOUND` and `UNKNOWN` are never promoted to findings).
+- `sources/` — the individual collectors: GitHub, GitLab, Reddit (username), Gravatar (email), DNS and crt.sh (domain).
+
+Probing is deliberately conservative: it confirms presence only, and each probe carries the URL that served as evidence.
+
+### `oracle/analyzers/correlation.py`
+
+Implements the correlation stage: whenever the same username is observed on two or more sources, it creates a `Profile` identity and a `same_username` relationship with `CONFIRMED` confidence, backed by copies of the collected evidence.
+
+### `oracle/services/engine.py`
+
+`AssessmentEngine` is the single entry point shared by the CLI and the dashboard: `scan()` probes and persists findings, `analyze()` applies correlation idempotently (re-running never duplicates), and `run_assessment()` produces the full bundle for scoring and reporting.
 
 ### Contracts for future phases
 
-- `collectors/base.py` defines `BaseCollector`, the contract for Phase 2 public information discovery.
-- `analyzers/base.py` defines `BaseAnalyzer`, the contract for Phase 3 correlation analysis.
+- `analyzers/base.py` defines `BaseAnalyzer`, the contract for future analyzers beyond username correlation.
 
-Both are intentionally empty skeletons so future engines plug in without changing the CLI or the models.
+Future engines plug in without changing the CLI, the dashboard, or the models.
 
 ---
 
@@ -420,13 +527,14 @@ Analysis and storage are entirely local. ORACLE does not collect or retain infor
 ## 🛣 Roadmap
 
 ```text
-Phase 1 · Foundation        ✅ Current release  → CLI, config, cases, models, scoring, reporting
-Phase 2 · Exposure Discovery  🔭  → username / email / domain / profile collectors
-Phase 3 · Identity Correlation 🔭  → identity graph, confidence scoring, relationship evidence
-Phase 4 · OPSEC Assessment  🔭  → risk categories, finding prioritization
-Phase 5 · Privacy Tools     🔭  → EXIF analysis, metadata sanitization, encrypted reports
-Phase 6 · GUI               🔭  → dashboard, graph visualization, findings interface
+Phase 1 · Foundation             ✅  → CLI, config, cases, models, scoring, reporting
+Phase 2 · Exposure Discovery     ✅  → GitHub, GitLab, Reddit, Gravatar, DNS, crt.sh collectors
+Phase 3 · Identity Correlation   ✅  → same_username correlation, relationship evidence
+Phase 4 · OPSEC Assessment       ✅  → risk categories, finding prioritization
+Phase 6 · Dashboard              ✅  → CustomTkinter GUI, guided wizard, settings
+Phase 5 · Privacy Tools          🔭  → EXIF analysis, metadata sanitization, encrypted reports
 Phase 7 · Historical Intelligence 🔭 → assessment history, exposure comparison, trends
+Phase 8 · More collectors         🔭  → email-focused sources, profile aggregators
 ```
 
 ---
@@ -460,6 +568,8 @@ Both projects favor: **Evidence first. Context before conclusions.**
 - Python 3.10+
 - Click (command-line interface)
 - Rich (terminal output)
+- CustomTkinter (desktop dashboard; installed via the `gui` extra)
+- httpx (bounded public-source probing)
 - Pydantic v2 (domain models and validation)
 - SQLAlchemy 2.0 (SQLite persistence)
 - TOML (configuration)

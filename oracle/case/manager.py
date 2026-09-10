@@ -125,6 +125,20 @@ class CaseManager:
             ).all()
             return [_finding_from_record(r) for r in records]
 
+    def delete_finding(self, case_id: str, finding_id: str) -> None:
+        with self.session_factory() as session:
+            _get_case_record(session, case_id)
+            record = session.scalars(
+                select(FindingRecord).where(
+                    FindingRecord.case_id == case_id,
+                    FindingRecord.id == finding_id,
+                )
+            ).one_or_none()
+            if record is None:
+                raise KeyError(f"finding not found: {finding_id}")
+            session.delete(record)
+            session.commit()
+
     def add_relationship(
         self, case_id: str, relationship: Relationship
     ) -> Relationship:

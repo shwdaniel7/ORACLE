@@ -20,7 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 DEFAULT_APP_DIR = Path.home() / ".oracle"
 DEFAULT_CONFIG_PATH = DEFAULT_APP_DIR / "config.toml"
 
-_DEFAULT_ENABLED_COLLECTORS = ("github", "gitlab", "reddit", "dns", "crt", "gravatar")
+_DEFAULT_ENABLED_COLLECTORS = ("github", "gitlab", "reddit", "dns", "crt", "gravatar", "pwnedpass")
 
 _SAMPLE_CONFIG = """\
 # ORACLE configuration

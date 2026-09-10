@@ -121,10 +121,13 @@ ORACLE probes identifiers against public sources and records only what it actual
 | `dns` | domain | system resolver (A/AAAA records) |
 | `crt` | domain | `crt.sh` certificate transparency |
 | `gravatar` | email | `gravatar.com/{md5(email)}.json` |
+| `pwnedpass` | password | `api.pwnedpasswords.com/range/{sha1-prefix}` |
 
 Probing is **bounded**: a limit of probes per identity, a delay between requests, and per-source collection. A failed or inconclusive probe never becomes a finding — `NOT_FOUND` and `UNKNOWN` simply produce no evidence.
 
 Emails are matched to a public Gravatar profile only when one actually exists; an email with no profile simply reports `not observed`. In the GUI, discovery **runs automatically** when you reach the *Descoberta* step, and the summary distinguishes `found` from `not observed` from `source error/rate-limited` — so a rate-limited source never reads as a false "not found".
+
+Passwords are never stored or transmitted: the password is hashed (SHA-1) on your machine and only the **first 5 hex characters** reach the Pwned Passwords API (k-anonymity); the full comparison happens locally, so neither the password nor its complete hash ever leaves the computer. Breached passwords surface as `FOUND` findings with the exposure count.
 
 ### Automatic identity correlation
 
@@ -214,7 +217,7 @@ ORACLE/
     │   ├── http.py          #   → bounded HTTP client
     │   ├── registry.py      #   → probe planning + scan orchestration
     │   ├── mapper.py        #   → probe results to findings
-    │   └── sources/         #   → github, gitlab, reddit, dns, crt, gravatar
+    │   └── sources/         #   → github, gitlab, reddit, dns, crt, gravatar, pwnedpass
     ├── analyzers/           # Correlation analyzers
     │   ├── base.py          #   → BaseAnalyzer contract
     │   └── correlation.py   #   → same_username identity correlation
@@ -301,7 +304,7 @@ data_dir = "C:/Users/you/.oracle"
 default_format = "markdown"
 
 [collectors]
-enabled = ["github", "gitlab", "reddit", "dns", "crt", "gravatar"]
+enabled = ["github", "gitlab", "reddit", "dns", "crt", "gravatar", "pwnedpass"]
 timeout_seconds = 10
 delay_seconds = 0.2
 max_probes_per_identity = 8
@@ -382,7 +385,7 @@ $ oracle case new "My Audit"
 ```text
 $ oracle scan <case-id>
 
-Scanning 1 identity against 6 collectors...
+Scanning 1 identity against 7 collectors...
 
 ✓ github  → example_user  FOUND (github.com/example_user)
 ✓ gitlab  → example_user  FOUND (gitlab.com/example_user)
@@ -475,7 +478,7 @@ A Click group with Rich output styled in ORACLE's olive green. It exposes `init`
 - `http.py` — a bounded `httpx` client with a timeout per request.
 - `registry.py` — plans which collectors apply to which identifiers, runs scans with a delay between probes, and reports progress or cancellation.
 - `mapper.py` — converts probe results into findings with evidence (`NOT_FOUND` and `UNKNOWN` are never promoted to findings).
-- `sources/` — the individual collectors: GitHub, GitLab, Reddit (username), Gravatar (email), DNS and crt.sh (domain).
+- `sources/` — the individual collectors: GitHub, GitLab, Reddit, Gravatar (username/email), Pwned Passwords (password), DNS and crt.sh (domain).
 
 Probing is deliberately conservative: it confirms presence only, and each probe carries the URL that served as evidence.
 
@@ -528,7 +531,7 @@ Analysis and storage are entirely local. ORACLE does not collect or retain infor
 
 ```text
 Phase 1 · Foundation             ✅  → CLI, config, cases, models, scoring, reporting
-Phase 2 · Exposure Discovery     ✅  → GitHub, GitLab, Reddit, Gravatar, DNS, crt.sh collectors
+Phase 2 · Exposure Discovery     ✅  → GitHub, GitLab, Reddit, Gravatar, Pwned Passwords, DNS, crt.sh collectors
 Phase 3 · Identity Correlation   ✅  → same_username correlation, relationship evidence
 Phase 4 · OPSEC Assessment       ✅  → risk categories, finding prioritization
 Phase 6 · Dashboard              ✅  → CustomTkinter GUI, guided wizard, settings

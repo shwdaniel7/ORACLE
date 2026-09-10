@@ -27,6 +27,7 @@ _CATEGORY_BY_SOURCE = {
     "dns": "Public Information",
     "crt": "Public Information",
     "gravatar": "Email Exposure",
+    "pwnedpass": "Account Privacy",
 }
 
 _SEVERITY_BY_SOURCE = {
@@ -36,6 +37,7 @@ _SEVERITY_BY_SOURCE = {
     "dns": Severity.LOW,
     "crt": Severity.MEDIUM,
     "gravatar": Severity.MEDIUM,
+    "pwnedpass": Severity.HIGH,
 }
 
 _RECOMMENDATION_BY_CATEGORY = {
@@ -51,6 +53,11 @@ _RECOMMENDATION_BY_CATEGORY = {
         "Review the publicly observable information and consider restricting "
         "or removing the exposed records."
     ),
+    "Account Privacy": (
+        "This password has appeared in known breaches: change it immediately, "
+        "do not reuse it elsewhere, and enable two-factor authentication "
+        "wherever the account supports it."
+    ),
 }
 
 _STATUS_REFUSED = frozenset({ProbeStatus.NOT_FOUND, ProbeStatus.UNKNOWN})
@@ -62,8 +69,12 @@ def finding_from_probe(identity: Identity, result: ProbeResult) -> Finding | Non
         return None
 
     category = _category_for(identity, result.source)
-    description: str
-    if identity.type is IdentityType.USERNAME:
+    if identity.type is IdentityType.PASSWORD:
+        description = (
+            f"This password appears in data exposed by known breaches "
+            f"({result.source})."
+        )
+    elif identity.type is IdentityType.USERNAME:
         description = (
             f"Publicly accessible profile found for username '{identity.value}' "
             f"on {result.source}."

@@ -95,7 +95,7 @@ class TestRegistry:
         assert [c.name for c in collectors] == ["github", "crt"]
 
     def test_build_collectors_default(self) -> None:
-        assert len(build_collectors()) == 6
+        assert len(build_collectors()) == 7
 
     def test_plan_probes_pairs_by_type(self) -> None:
         username = Identity(type=IdentityType.USERNAME, value="octopus")

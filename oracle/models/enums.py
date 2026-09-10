@@ -43,4 +43,5 @@ class IdentityType(str, Enum):
     EMAIL = "email"
     DOMAIN = "domain"
     PROFILE = "profile"
+    PASSWORD = "password"
     OTHER = "other"

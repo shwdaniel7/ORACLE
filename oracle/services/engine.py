@@ -32,6 +32,7 @@ DEFAULT_COLLECTORS: tuple[str, ...] = (
     "dns",
     "crt",
     "gravatar",
+    "pwnedpass",
 )
 
 

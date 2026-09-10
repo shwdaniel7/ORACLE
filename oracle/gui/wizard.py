@@ -11,6 +11,7 @@ progress is streamed back to the UI through a queue.
 
 from __future__ import annotations
 
+import hashlib
 import queue
 import threading
 import traceback
@@ -233,6 +234,18 @@ class WizardView(ctk.CTkFrame):
         ctk.CTkButton(form, text="Adicionar", width=100, command=self._add_identity).pack(
             side="left"
         )
+        ctk.CTkLabel(
+            self.content,
+            text=(
+                "Senhas são mascaradas e guardadas só como hash local; a verificação "
+                "usa Pwned Passwords (k-anonymity) e nada além do prefixo do hash sai "
+                "do computador."
+            ),
+            font=(_FONT, 11),
+            text_color=SUBHEADER,
+            wraplength=600,
+            justify="left",
+        ).pack(fill="x", padx=60, pady=(0, 16))
 
         self._identity_list = ctk.CTkScrollableFrame(self.content, height=300)
         self._identity_list.pack(fill="x", padx=60)
@@ -246,6 +259,8 @@ class WizardView(ctk.CTkFrame):
             messagebox.showwarning("Valor obrigatório", "Informe o identificador.")
             return
         identity_type = IdentityType(self._identity_type_var.get())
+        if identity_type is IdentityType.PASSWORD:
+            value = hashlib.sha1(value.encode("utf-8")).hexdigest()
         self.engine.manager.add_identity(
             self.case_id, Identity(type=identity_type, value=value)
         )
@@ -271,9 +286,10 @@ class WizardView(ctk.CTkFrame):
             ctk.CTkLabel(
                 row, text=identity.type.value, width=96, font=(_FONT, 12, "bold")
             ).pack(side="left", padx=10, pady=6)
-            ctk.CTkLabel(row, text=identity.value, font=(_FONT, 13)).pack(
-                side="left", padx=6
-            )
+            value = identity.value
+            if identity.type is IdentityType.PASSWORD:
+                value = f"sha1:{value[:10]}… (hash armazenado)"
+            ctk.CTkLabel(row, text=value, font=(_FONT, 13)).pack(side="left", padx=6)
 
     # ----------------------------------------------------------- step 3
     def _step_discovery(self) -> None:

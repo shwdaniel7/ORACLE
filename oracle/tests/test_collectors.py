@@ -15,6 +15,7 @@ from oracle.collectors.sources.dns import DnsCollector
 from oracle.collectors.sources.github import GitHubCollector
 from oracle.collectors.sources.gitlab import GitLabCollector
 from oracle.collectors.sources.gravatar import GravatarCollector
+from oracle.collectors.sources.pwnedpass import PwnedPassCollector
 from oracle.collectors.sources.reddit import RedditCollector
 from oracle.models import IdentityType
 
@@ -139,8 +140,77 @@ class TestGravatar:
         assert seen["path"] == f"/{expected}.json"
 
 
+class TestPwnedPass:
+    def test_found_with_count(self) -> None:
+        digest = hashlib.sha1(b"123456").hexdigest().upper()
+        body = (
+            "0000EXAMPLE0000EXAMPLE0000EXAMPLE0000EX:1\n"
+            f"{digest[5:]}:22183445\n"
+            "ADDBEEFADDBEEFADDBEEFADDBEEFADDBEEF:3\n"
+        )
+
+        client = _client(
+            lambda request: httpx.Response(200, text=body, request=request)
+        )
+        result = PwnedPassCollector().probe(
+            IdentityType.PASSWORD, "123456", client
+        )
+        assert result.status is ProbeStatus.FOUND
+        assert "22183445" in (result.snippet or "")
+
+    def test_not_found(self) -> None:
+        digest = hashlib.sha1(b"not-a-real-password-xyz").hexdigest().upper()
+        body = "ADDBEEFADDBEEFADDBEEFADDBEEFADDBEEF:3\n"
+
+        client = _client(
+            lambda request: httpx.Response(200, text=body, request=request)
+        )
+        result = PwnedPassCollector().probe(
+            IdentityType.PASSWORD, "not-a-real-password-xyz", client
+        )
+        assert result.status is ProbeStatus.NOT_FOUND
+        assert digest[5:] not in body
+
+    def test_rate_limited(self) -> None:
+        client = _client(_found_response(429))
+        result = PwnedPassCollector().probe(
+            IdentityType.PASSWORD, "123456", client
+        )
+        assert result.status is ProbeStatus.ERROR
+        assert "rate limited" in (result.error_message or "")
+
+    def test_only_prefix_leaves_the_machine(self) -> None:
+        digest = hashlib.sha1(b"correct horse battery staple").hexdigest().upper()
+        seen: dict[str, str] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.path
+            return httpx.Response(
+                200, text=f"{digest[5:]}:9\n", request=request
+            )
+
+        result = PwnedPassCollector().probe(
+            IdentityType.PASSWORD, "correct horse battery staple", _client(handler)
+        )
+        assert result.status is ProbeStatus.FOUND
+        requested = seen["path"]
+        assert requested == f"/range/{digest[:5]}"
+        assert digest not in requested
+        assert digest[5:] not in requested
+
+    def test_prehashed_value_used_as_is(self) -> None:
+        digest = hashlib.sha1(b"123456").hexdigest().upper()
+        client = _client(lambda r: httpx.Response(200, text=f"{digest[5:]}:5\n", request=r))
+        result = PwnedPassCollector().probe(IdentityType.PASSWORD, digest, client)
+        assert result.status is ProbeStatus.FOUND
+        assert "5" in (result.snippet or "")
+
+
 class TestReddit:
     def test_found(self) -> None:
+        client = _client(_found_response(json={"data": {"name": "octopus"}}))
+        result = RedditCollector().probe(IdentityType.USERNAME, "octopus", client)
+        assert result.status is ProbeStatus.FOUND
         client = _client(_found_response(json={"data": {"name": "octopus"}}))
         result = RedditCollector().probe(IdentityType.USERNAME, "octopus", client)
         assert result.status is ProbeStatus.FOUND

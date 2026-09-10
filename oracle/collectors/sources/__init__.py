@@ -7,6 +7,7 @@ from oracle.collectors.sources.dns import DnsCollector
 from oracle.collectors.sources.github import GitHubCollector
 from oracle.collectors.sources.gitlab import GitLabCollector
 from oracle.collectors.sources.gravatar import GravatarCollector
+from oracle.collectors.sources.pwnedpass import PwnedPassCollector
 from oracle.collectors.sources.reddit import RedditCollector
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "GitHubCollector",
     "GitLabCollector",
     "GravatarCollector",
+    "PwnedPassCollector",
     "RedditCollector",
 ]

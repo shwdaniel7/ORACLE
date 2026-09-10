@@ -18,6 +18,7 @@ from oracle.collectors.sources.dns import DnsCollector
 from oracle.collectors.sources.github import GitHubCollector
 from oracle.collectors.sources.gitlab import GitLabCollector
 from oracle.collectors.sources.gravatar import GravatarCollector
+from oracle.collectors.sources.pwnedpass import PwnedPassCollector
 from oracle.collectors.sources.reddit import RedditCollector
 from oracle.models import Identity
 
@@ -28,6 +29,7 @@ DEFAULT_COLLECTORS: tuple[str, ...] = (
     "dns",
     "crt",
     "gravatar",
+    "pwnedpass",
 )
 
 _COLLECTOR_TYPES: dict[str, type[BaseCollector]] = {
@@ -39,6 +41,7 @@ _COLLECTOR_TYPES: dict[str, type[BaseCollector]] = {
         DnsCollector,
         CrtCollector,
         GravatarCollector,
+        PwnedPassCollector,
     )
 }
 

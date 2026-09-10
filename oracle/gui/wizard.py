@@ -677,9 +677,17 @@ class WizardView(ctk.CTkFrame):
                     scroll, text=priority, font=(_FONT, 14, "bold"), text_color=OLIVE
                 ).pack(anchor="w", pady=(10, 4))
                 for item in items:
-                    ctk.CTkCheckBox(scroll, text=item, wraplength=620).pack(
-                        anchor="w", padx=8, pady=2
-                    )
+                    row = ctk.CTkFrame(scroll, fg_color="transparent")
+                    row.pack(fill="x", anchor="w", padx=8, pady=2)
+                    ctk.CTkCheckBox(row, text="").pack(side="left", padx=(0, 6))
+                    ctk.CTkLabel(
+                        row,
+                        text=item,
+                        font=(_FONT, 12),
+                        justify="left",
+                        wraplength=560,
+                        anchor="w",
+                    ).pack(side="left", fill="x", expand=True)
 
         footer = ctk.CTkFrame(self.content, fg_color="transparent")
         footer.pack(fill="x", padx=40, pady=(14, 0))
